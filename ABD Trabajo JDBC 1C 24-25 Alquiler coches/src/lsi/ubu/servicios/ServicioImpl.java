@@ -36,32 +36,17 @@ public class ServicioImpl implements Servicio {
 				throw new AlquilerCochesException(AlquilerCochesException.SIN_DIAS);
 			}
 		}
-
+ 
 		try {
 			con = pool.getConnection();
-
-			/* A completar por el alumnado... */
-
-			/* ================================= AYUDA RÁPIDA ===========================*/
-			/*
-			 * Algunas de las columnas utilizan tipo numeric en SQL, lo que se traduce en
-			 * BigDecimal para Java.
-			 * 
-			 * Convertir un entero en BigDecimal: new BigDecimal(diasDiff)
-			 * 
-			 * Sumar 2 BigDecimals: usar metodo "add" de la clase BigDecimal
-			 * 
-			 * Multiplicar 2 BigDecimals: usar metodo "multiply" de la clase BigDecimal
-			 *
-			 * 
-			 * Paso de util.Date a sql.Date java.sql.Date sqlFechaIni = new
-			 * java.sql.Date(sqlFechaIni.getTime());
-			 *
-			 *
-			 * Recuerda que hay casos donde la fecha fin es nula, por lo que se debe de
-			 * calcular sumando los dias de alquiler (ver variable DIAS_DE_ALQUILER) a la
-			 * fecha ini.
-			 */
+			
+			st = con.prepareStatement("SELECT COUNT(*) FROM Clientes WHERE NIF = ?");
+			st.setString(1, nifCliente);
+			rs = st.executeQuery();
+			
+			if (rs.next() && rs.getInt(1) == 0) {
+				throw new AlquilerCochesException(AlquilerCochesException.CLIENTE_NO_EXIST);
+			}
 
 		} catch (SQLException e) {
 			// Completar por el alumno
