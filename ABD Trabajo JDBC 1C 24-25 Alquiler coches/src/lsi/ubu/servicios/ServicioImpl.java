@@ -41,7 +41,7 @@ public class ServicioImpl implements Servicio {
 			con = pool.getConnection();
 
 			// ### mi codigo ### //
-
+			// Comprobar si el cliente existe
 			st = con.prepareStatement("SELECT COUNT(*) FROM Clientes WHERE NIF = ?");
 			st.setString(1, nifCliente);
 			rs = st.executeQuery();
@@ -53,6 +53,7 @@ public class ServicioImpl implements Servicio {
 			rs.close();
 			st.close();
 
+			// Comprobar si el vehiculo existe
 			st = con.prepareStatement("SELECT COUNT(*) FROM Vehículos WHERE matricula = ?");
 			st.setString(1, matricula);
 			rs = st.executeQuery();
@@ -60,6 +61,22 @@ public class ServicioImpl implements Servicio {
 			if (rs.next() && rs.getInt(1) == 0) {
 				throw new AlquilerCochesException(AlquilerCochesException.VEHICULO_NO_EXIST);
 			}
+
+			rs.close();
+			st.close();
+
+			// Comprobar si el vehiculo está disponible
+			String sqlDisponibilidad = "SELECT COUNT(*) FROM Reservas WHERE matricula = ? AND (fecha_ini <= ? AND fecha_fin >= ?)";
+			st = con.prepareStatement(sqlDisponibilidad);
+			st.setString(1, matricula);
+			st.setDate(2, new java.sql.Date(fechaFin.getTime()));
+			st.setDate(3, new java.sql.Date(fechaIni.getTime()));
+			rs = st.executeQuery();
+
+			if (rs.next() && rs.getInt(1) > 0) {
+				throw new AlquilerCochesException(AlquilerCochesException.VEHICULO_NO_DISPONIBLE);
+			}
+
 
 
 		} catch (SQLException e) {
