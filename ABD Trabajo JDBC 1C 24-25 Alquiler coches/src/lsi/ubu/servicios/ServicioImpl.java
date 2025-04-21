@@ -39,7 +39,9 @@ public class ServicioImpl implements Servicio {
  
 		try {
 			con = pool.getConnection();
-			
+
+			// ### mi codigo ### //
+
 			st = con.prepareStatement("SELECT COUNT(*) FROM Clientes WHERE NIF = ?");
 			st.setString(1, nifCliente);
 			rs = st.executeQuery();
@@ -47,6 +49,18 @@ public class ServicioImpl implements Servicio {
 			if (rs.next() && rs.getInt(1) == 0) {
 				throw new AlquilerCochesException(AlquilerCochesException.CLIENTE_NO_EXIST);
 			}
+
+			rs.close();
+			st.close();
+
+			st = con.prepareStatement("SELECT COUNT(*) FROM Vehículos WHERE matricula = ?");
+			st.setString(1, matricula);
+			rs = st.executeQuery();
+
+			if (rs.next() && rs.getInt(1) == 0) {
+				throw new AlquilerCochesException(AlquilerCochesException.VEHICULO_NO_EXIST);
+			}
+
 
 		} catch (SQLException e) {
 			// Completar por el alumno
