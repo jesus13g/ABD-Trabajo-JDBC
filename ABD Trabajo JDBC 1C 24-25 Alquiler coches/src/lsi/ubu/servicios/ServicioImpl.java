@@ -77,6 +77,31 @@ public class ServicioImpl implements Servicio {
 				throw new AlquilerCochesException(AlquilerCochesException.VEHICULO_NO_DISPONIBLE);
 			}
 
+			rs.close();
+			st.close();
+
+			// Obtener el siguiente valor de la secuencia
+			st = con.prepareStatement("SELECT SEQ_RESERVAS.NEXTVAL FROM DUAL");
+			rs = st.executeQuery();
+			int idReserva = -1;
+			if (rs.next()) {
+				idReserva = rs.getInt(1);
+			}
+			rs.close();
+			st.close();
+
+			// Inserta la reserva
+			String sqlInsert = "INSERT INTO Reservas (idReserva, cliente, matricula, fecha_ini, fecha_fin) VALUES (?, ?, ?, ?, ?)";
+			st = con.prepareStatement(sqlInsert);
+			st.setInt(1, idReserva);
+			st.setString(2, nifCliente);
+			st.setString(3, matricula);
+			st.setDate(4, new java.sql.Date(fechaIni.getTime()));
+			st.setDate(5, new java.sql.Date(fechaFin.getTime()));
+
+			st.executeUpdate();
+
+
 
 
 		} catch (SQLException e) {
