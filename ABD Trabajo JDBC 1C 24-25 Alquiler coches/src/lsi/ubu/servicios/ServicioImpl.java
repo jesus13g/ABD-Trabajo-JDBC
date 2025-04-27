@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -25,25 +26,31 @@ public class ServicioImpl implements Servicio {
 		PreparedStatement st = null;
 		ResultSet rs = null;
 		
-		if (fechaIni == null) {
-			throw new AlquilerCochesException(AlquilerCochesException.SIN_DIAS);
-		}
-		
-		if (fechaFin == null) {
-			LOGGER.error("Se debe definir la fecha de fin.");
-		}
-		
+		boolean fechaFinWasNull = false;
 
-		/*
-		 * El calculo de los dias se da hecho
-		 */
-		long diasDiff = DIAS_DE_ALQUILER;
-		if (fechaFin != null) {
-			diasDiff = TimeUnit.MILLISECONDS.toDays(fechaFin.getTime() - fechaIni.getTime());
-			if (diasDiff < 1) {
-				throw new AlquilerCochesException(AlquilerCochesException.SIN_DIAS);
-			}
+		if (fechaIni == null) {
+		    throw new AlquilerCochesException(AlquilerCochesException.SIN_DIAS);
 		}
+
+		if (fechaFin == null) {
+		    fechaFinWasNull = true;
+		    Calendar cal = Calendar.getInstance();
+		    cal.setTime(fechaIni);
+		    cal.add(Calendar.DAY_OF_MONTH, DIAS_DE_ALQUILER - 1);
+		    fechaFin = cal.getTime();
+		}
+	
+		/*
+		 * El calculo de los dias se da hecho, modificado
+		 */
+		long diasDiff = TimeUnit.MILLISECONDS.toDays(fechaFin.getTime() - fechaIni.getTime());
+		if (fechaFinWasNull) {
+		    diasDiff += 1; // Sumar 1 solo si la fechaFin la calculamos nosotros
+		}
+		if (diasDiff < 1) {
+		    throw new AlquilerCochesException(AlquilerCochesException.SIN_DIAS);
+		}
+
  
 		try {
 			con = pool.getConnection();
@@ -66,7 +73,6 @@ public class ServicioImpl implements Servicio {
 			rs = st.executeQuery();
 			
 			if (rs.next() && rs.getInt(1) == 0) {
-				System.out.println("Lanza excep de vehiculo inexistente");
 				throw new AlquilerCochesException(AlquilerCochesException.VEHICULO_NO_EXIST);
 			}
 			
@@ -87,7 +93,7 @@ public class ServicioImpl implements Servicio {
 			rs.close();
 			st.close();
 			
-			st = con.prepareStatement("SELECT SEQ_RESERVAS.NEXTVAL FROM DUAL");
+			st = con.prepareStatement("SELECT seq_reservas.NEXTVAL FROM DUAL");
 			rs = st.executeQuery();
 			int idReserva = -1;
 			if(rs.next()) {
@@ -105,12 +111,91 @@ public class ServicioImpl implements Servicio {
 			st.setDate(5, new java.sql.Date(fechaFin.getTime()));
 			
 			st.executeUpdate();
+			
+			// Obtener nuevo número de factura
+            st = con.prepareStatement("SELECT seq_num_fact.NEXTVAL FROM DUAL");
+            rs = st.executeQuery();
+            int nroFactura = -1;
+            if (rs.next()) {
+                nroFactura = rs.getInt(1);
+            }
+            rs.close();
+            st.close();
+
+            // Obtener precio por día
+            st = con.prepareStatement("SELECT m.precio_cada_dia, m.id_modelo FROM Modelos m JOIN Vehiculos v ON m.id_modelo = v.id_modelo WHERE v.matricula = ?");
+            st.setString(1, matricula);
+            rs = st.executeQuery();
+            double precioDia = 0.0;
+            int idModelo = 0;
+            if (rs.next()) {
+                precioDia = rs.getDouble(1);
+                idModelo = rs.getInt(2);
+            }
+            rs.close();
+            st.close();
+
+            double importeDias = diasDiff * precioDia;
+
+            // Obtener capacidad de depósito y tipo de combustible
+            st = con.prepareStatement("SELECT m.capacidad_deposito, m.tipo_combustible FROM Modelos m JOIN Vehiculos v ON m.id_modelo = v.id_modelo WHERE v.matricula = ?");
+            st.setString(1, matricula);
+            rs = st.executeQuery();
+            double capacidadDeposito = 0.0;
+            String tipoCombustible = "";
+            if (rs.next()) {
+                capacidadDeposito = rs.getDouble(1);
+                tipoCombustible = rs.getString(2);
+            }
+            rs.close();
+            st.close();
+
+            // Obtener precio por litro
+            st = con.prepareStatement("SELECT precio_por_litro FROM Precio_Combustible WHERE tipo_combustible = ?");
+            st.setString(1, tipoCombustible);
+            rs = st.executeQuery();
+            double precioLitro = 0.0;
+            if (rs.next()) {
+                precioLitro = rs.getDouble(1);
+            }
+            rs.close();
+            st.close();
+
+            double importeDeposito = capacidadDeposito * precioLitro;
+
+            // Insertar factura
+            double importeTotal = importeDias + importeDeposito;
+            st = con.prepareStatement("INSERT INTO Facturas (nroFactura, importe, cliente) VALUES (?, ?, ?)");
+            st.setInt(1, nroFactura);
+            st.setDouble(2, importeTotal);
+            st.setString(3, nifCliente);
+            st.executeUpdate();
+            st.close();
+
+            // Insertar línea de factura - alquiler
+            st = con.prepareStatement("INSERT INTO Lineas_Factura (nroFactura, concepto, importe) VALUES (?, ?, ?)");
+            String conceptoAlquiler = diasDiff + " dias de alquiler, vehiculo modelo " + idModelo;
+            st.setInt(1, nroFactura);
+            st.setString(2, conceptoAlquiler);
+            st.setDouble(3, importeDias);
+            st.executeUpdate();
+            st.close();
+
+            // Insertar línea de factura - depósito lleno
+            st = con.prepareStatement("INSERT INTO Lineas_Factura (nroFactura, concepto, importe) VALUES (?, ?, ?)");
+            String conceptoDeposito = "Deposito lleno de " + (int)capacidadDeposito + " litros de " + tipoCombustible;
+            st.setInt(1, nroFactura);
+            st.setString(2, conceptoDeposito);
+            st.setDouble(3, importeDeposito);
+            st.executeUpdate();
+            st.close();
+            
 			con.commit();
 			
 		} catch (SQLException e) {
 			// Completar por el alumno
 			if (con != null) try {con.rollback(); } catch (SQLException ex) {LOGGER.error(ex.getMessage());}
-			LOGGER.debug(e.getMessage());
+			LOGGER.error(e.getMessage());
 
 			throw e;
 
