@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
  * 
  * @author <a href="mailto:jmaudes@ubu.es">Jesus Maudes</a>
  * @author <a href="mailto:rmartico@ubu.es">Raul Marticorena</a>
- * @author <a href="mailto:srarribas@ubu.es">Sandra Rodr�guez</a>
+ * @author <a href="mailto:srarribas@ubu.es">Sandra Rodr�guez</a>
  * @version 1.2
  * @since 1.0
  */
@@ -34,6 +34,26 @@ public class AlquilerCochesException extends SQLException {
 		/*
 		 * A completar por el alumnado
 		 */
+		super();
+		this.codigo = code;
+		
+		switch(code) {
+		case CLIENTE_NO_EXIST:
+			this.mensaje = "Cliente inexistente.";
+			break;
+		case VEHICULO_NO_EXIST:
+			this.mensaje = "Vehículo inexistente.";
+			break;
+		case SIN_DIAS:
+			this.mensaje = "El número de dias será mayor que cero.";
+			break;
+		case VEHICULO_OCUPADO:
+			this.mensaje = "El vehículo no está disponible.";
+			break;
+		default:
+			this.mensaje = "Error desconocido.";
+			break;
+		}
 
 		LOGGER.debug(mensaje);
 
